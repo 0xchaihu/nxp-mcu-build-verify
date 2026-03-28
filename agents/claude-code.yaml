@@ -1,0 +1,4 @@
+interface:
+  display_name: "NXP MCU Build Verify"
+  short_description: "Detect NXP project and verify correct build"
+  default_prompt: "Use nxp-mcu-build-verify to detect this NXP MCU project type and run the matching command-line build check without GCC fallback."

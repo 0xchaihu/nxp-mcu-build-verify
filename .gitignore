@@ -1,0 +1,25 @@
+# OS files
+Thumbs.db
+.DS_Store
+
+# Editor / IDE files
+.vscode/
+.idea/
+*.code-workspace
+
+# Python cache
+__pycache__/
+*.pyc
+
+# PowerShell / script logs and temp output
+*.log
+*.tmp
+*.temp
+
+# Local archives
+*.zip
+
+# Backup files
+*.bak
+*.bak.*
+
