@@ -1528,7 +1528,7 @@ try {
             foreach ($label in $attempts) {
                 Write-Host ("attempt={0}" -f $label)
                 $attemptStarted = Get-Date
-                $args = @($candidate.MarkerFile, "-build", $label, "-log", "all")
+                $args = @($candidate.MarkerFile, "-make", $label, "-log", "all")
                 $hostCommand = Format-Command -Exe $toolPath -Args $args
                 Write-Host ("host_execution_command={0}" -f $hostCommand)
 

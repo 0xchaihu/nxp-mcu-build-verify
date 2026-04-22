@@ -7,7 +7,7 @@ This skill targets Windows PowerShell and chooses a single project type before b
 1. **IAR**
    - Marker: `*.ewp`
    - Build command template:
-     - `IarBuild.exe <project.ewp> -build <config>`
+     - `IarBuild.exe <project.ewp> -make <config>`
    - Config source: parse `<project><configuration><name>` from `.ewp`; fallback to `Debug`, `Release` when parsing fails.
    - Typical tool locations searched:
      - `C:\iar\ewarm-<version>\common\bin\iarbuild.exe`
