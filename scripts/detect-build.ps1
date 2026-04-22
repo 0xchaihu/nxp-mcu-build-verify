@@ -956,17 +956,19 @@ function Get-McuxIdeConfigs {
     try {
         [xml]$xml = Get-Content -LiteralPath $CprojectFile
         $nodes = $xml.SelectNodes("//configuration[@name]")
-        $configs = @()
+        $configs = [System.Collections.Generic.List[string]]::new()
 
         foreach ($node in $nodes) {
             $name = [string]$node.name
             if (-not [string]::IsNullOrWhiteSpace($name)) {
-                $normalized = ($name -split "\\|")[-1]
-                $configs += $normalized
+                $normalized = ($name -split "\|")[-1]
+                if (-not [string]::IsNullOrWhiteSpace($normalized) -and -not $configs.Contains($normalized)) {
+                    $configs.Add($normalized)
+                }
             }
         }
 
-        return $configs | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Select-Object -Unique
+        return ,$configs.ToArray()
     }
     catch {
         Write-Warning "Cannot parse .cproject for build configs; fallback to Debug/Release guesses."
@@ -1361,31 +1363,46 @@ function Get-CMakeConfigurePlan {
         throw "CMakePresets.json has no configurePresets."
     }
 
-    $desiredConfigs = if ([string]::IsNullOrWhiteSpace($ExplicitConfig)) { @("Debug", "Release") } else { @($ExplicitConfig) }
-    $selectedConfigurePresets = @()
+    $allPresetNames = @($configurePresets | ForEach-Object { Get-OptionalPropertyValue -Object $_ -Name "name" } | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
+    Write-Host ("detected_configs={0}" -f ($allPresetNames -join ','))
 
-    foreach ($desired in $desiredConfigs) {
-        $match = $configurePresets | Where-Object {
-            $presetName = Get-OptionalPropertyValue -Object $_ -Name "name"
-            $presetConfig = Get-OptionalPropertyValue -Object $_ -Name "configuration"
-            ($presetName -eq $desired) -or
-            (($presetName) -and ($presetName -match [regex]::Escape($desired))) -or
-            ($presetConfig -eq $desired)
-        } | Select-Object -First 1
+    if (-not [string]::IsNullOrWhiteSpace($ExplicitConfig)) {
+        $desiredConfigs = @($ExplicitConfig)
+        $selectedConfigurePresets = @()
 
-        if ($match) {
-            $matchName = Get-OptionalPropertyValue -Object $match -Name "name"
-            $exists = $selectedConfigurePresets | Where-Object {
-                (Get-OptionalPropertyValue -Object $_ -Name "name") -eq $matchName
-            }
-            if (-not $exists) {
-                $selectedConfigurePresets += $match
+        foreach ($desired in $desiredConfigs) {
+            $match = $configurePresets | Where-Object {
+                $presetName = Get-OptionalPropertyValue -Object $_ -Name "name"
+                $presetConfig = Get-OptionalPropertyValue -Object $_ -Name "configuration"
+                ($presetName -eq $desired) -or
+                (($presetName) -and ($presetName -match [regex]::Escape($desired))) -or
+                ($presetConfig -eq $desired)
+            } | Select-Object -First 1
+
+            if ($match) {
+                $matchName = Get-OptionalPropertyValue -Object $match -Name "name"
+                $exists = $selectedConfigurePresets | Where-Object {
+                    (Get-OptionalPropertyValue -Object $_ -Name "name") -eq $matchName
+                }
+                if (-not $exists) {
+                    $selectedConfigurePresets += $match
+                }
             }
         }
-    }
 
-    if ($selectedConfigurePresets.Count -eq 0) {
-        $selectedConfigurePresets += $configurePresets[0]
+        if ($selectedConfigurePresets.Count -eq 0) {
+            throw ("No CMake configure preset matches requested config '{0}'. Available presets: {1}" -f $ExplicitConfig, ($allPresetNames -join ', '))
+        }
+    }
+    else {
+        $orderedNames = Get-ConfigAttempts -ExplicitConfig $null -Available $allPresetNames
+        $selectedConfigurePresets = @()
+        foreach ($name in $orderedNames) {
+            $preset = $configurePresets | Where-Object { (Get-OptionalPropertyValue -Object $_ -Name "name") -eq $name } | Select-Object -First 1
+            if ($preset -and -not ($selectedConfigurePresets | Where-Object { (Get-OptionalPropertyValue -Object $_ -Name "name") -eq $name })) {
+                $selectedConfigurePresets += $preset
+            }
+        }
     }
 
     $resolvedPresets = @{}
@@ -1522,6 +1539,7 @@ try {
             Write-Host "artifact_check_hint=If the command is interrupted, check <Config>\.ninja_log and <Config>\Exe\*.srec or *.out before treating it as failed."
 
             $iarConfigs = Get-IarConfigs -EwpPath $candidate.MarkerFile
+            Write-Host ("detected_configs={0}" -f ($iarConfigs -join ','))
             $attempts = Get-ConfigAttempts -ExplicitConfig $Config -Available $iarConfigs
             $result = 1
 
@@ -1573,6 +1591,7 @@ try {
             Write-Host "execution_hint=Keil real builds must run on the host or in an unsandboxed shell. In sandboxed or agent-run environments, emit host_execution_command, print sandbox_execution_refused=true, and refuse the in-place build. Prefer the real Windows user environment because sandbox usernames can invalidate user-based licenses. Prefer uVision.com over UV4.exe."
 
             $targets = Get-KeilTargets -UvprojxPath $candidate.MarkerFile
+            Write-Host ("detected_configs={0}" -f ($targets -join ','))
             $attempts = Get-ConfigAttempts -ExplicitConfig $Config -Available $targets
             $result = Invoke-BuildWithAttempts -AttemptLabels $attempts -AttemptBlock {
                 param($label)
@@ -1609,6 +1628,7 @@ try {
             $projectName = Get-McuxIdeProjectName -ProjectFile (Join-Path -Path $projectDir -ChildPath ".project")
             $projectDir = Resolve-McuxIdeProjectDirectory -ProjectDirectory $projectDir -ProjectName $projectName
             $ideConfigs = Get-McuxIdeConfigs -CprojectFile (Join-Path -Path $projectDir -ChildPath ".cproject")
+            Write-Host ("detected_configs={0}" -f ($ideConfigs -join ','))
             $workspaceRoot = Get-McuxIdeWorkspaceRoot -ProjectDirectory $projectDir
             $attempts = Get-ConfigAttempts -ExplicitConfig $Config -Available $ideConfigs
 

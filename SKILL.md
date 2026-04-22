@@ -59,6 +59,7 @@ The script always prints these keys so logs are easy to parse:
 - `forced_type` (only when `-Type` is set)
 - `project_type`
 - `detected_file`
+- `detected_configs` (comma-separated list of build configurations extracted from the project file)
 - `tool_path`
 - `selected_command`
 - `tool_output_mode` and `tool_log` for real builds in compact mode
@@ -74,7 +75,7 @@ See `references/project-markers.md` for marker and command details.
 - Prefer the nearest detected project root.
 - If multiple markers exist in the same directory, prefer: IAR > Keil > MCUXpresso IDE > MCUXpresso VS Code.
 - `-Type` can force one type: `IAR`, `Keil`, `MCUXpressoIDE`, `MCUXpressoVSCode` (aliases: `ide`, `vscode`).
-- If `-Config` is not provided, IAR reads configurations from `.ewp` first; otherwise try `Debug` then `Release`.
+- If `-Config` is not provided, all project types extract available build configurations from the project file first (IAR from `.ewp`, Keil from `.uvprojx`, MCUXpresso IDE from `.cproject`, MCUXpresso VS Code from `CMakePresets.json`). Configurations containing "debug" are tried first, then "release", then all others. If no configs are found in the project file, fall back to `Debug` then `Release`.
 - For MCUXpresso VS Code, prefer the preset/configuration spelling used in `CMakePresets.json` in examples and direct invocations, which is often lowercase such as `debug` / `release`.
 - Dry-run is optional; use it when detection is uncertain, when you need to preview commands, or when you need a `host_execution_command` for host-side execution. If the project type and exact invocation are already known, run the real build directly.
 - Real builds default to compact tool output and write the raw tool log under a system temporary log directory; use `-FullToolOutput` only when detailed live output is required.
